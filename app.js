@@ -53,10 +53,12 @@ app.addEventListener("click", async (event) => {
   if (action === "spin-player") {
     spinPlayerOffer();
     render();
+    jumpToPlayerOffers();
   }
   if (action === "reroll-offer") {
     rerollPlayerOffer();
     render();
+    jumpToPlayerOffers();
   }
   if (action === "draft-offer") {
     draftOfferedPlayer(button.dataset.playerId, button.dataset.slot);
@@ -175,6 +177,14 @@ function jumpToWicketReplay() {
   const target = document.querySelector("#wicket-replay");
   if (target && typeof target.scrollIntoView === "function") {
     target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
+function jumpToPlayerOffers() {
+  if (window.innerWidth > 680) return;
+  const target = document.querySelector(".offer-list .offer-player");
+  if (target && typeof target.scrollIntoView === "function") {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 }
 
@@ -727,7 +737,14 @@ function renderReplayInningsClose(match, event, isLatest) {
           </div>
           <table class="bowling-summary-table">
             <thead>
-              <tr><th>Bowler</th><th>Overs</th><th>Maidens</th><th>Runs</th><th>Wickets</th><th>Economy</th></tr>
+              <tr>
+                <th>Bowler</th>
+                <th><span class="wide-column-label">Overs</span><span class="compact-column-label">O</span></th>
+                <th><span class="wide-column-label">Maidens</span><span class="compact-column-label">M</span></th>
+                <th><span class="wide-column-label">Runs</span><span class="compact-column-label">R</span></th>
+                <th><span class="wide-column-label">Wickets</span><span class="compact-column-label">W</span></th>
+                <th><span class="wide-column-label">Economy</span><span class="compact-column-label">Econ</span></th>
+              </tr>
             </thead>
             <tbody>
               ${innings.bowling.map((row) => `
