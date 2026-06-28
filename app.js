@@ -95,6 +95,9 @@ app.addEventListener("click", async (event) => {
     state.activeMatchIndex = Number(button.dataset.matchIndex);
     render();
   }
+  if (action === "jump-to-respins") {
+    jumpToBreakRespins();
+  }
   if (action === "copy-match-image" || action === "download-match-image") {
     await shareResultImage("match", action.startsWith("copy") ? "copy" : "download", Number(button.dataset.matchIndex));
   }
@@ -188,6 +191,13 @@ function jumpToPlayerOffers() {
       target.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, 0);
+}
+
+function jumpToBreakRespins() {
+  const target = document.querySelector(".match-break-respin");
+  if (target && typeof target.scrollIntoView === "function") {
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 function scrollWicketReplayToLatest() {
@@ -570,6 +580,7 @@ function renderResults() {
       ${inBreak && isLatestPlaybackComplete() ? renderMatchBreak(validation) : ""}
       ${renderMatchTabs(activeMatch.index)}
       ${renderMatchResult(activeMatch)}
+      ${inBreak && isLatestPlaybackComplete() && activeMatch.index === latestMatch.index ? renderBottomBreakActions(validation) : ""}
       ${seriesSummary ? renderSeriesSummary(seriesSummary) : ""}
     </section>
   `;
@@ -607,6 +618,22 @@ function renderMatchBreak(validation) {
       </div>
       <div class="match-break-respin">
         ${renderSpinPanel(state.currentOffer, validation)}
+      </div>
+    </div>
+  `;
+}
+
+function renderBottomBreakActions(validation) {
+  const respinLabel = state.breakChangesRemaining === 1 ? "1 respin left" : `${state.breakChangesRemaining} respins left`;
+  return `
+    <div class="bottom-break-actions">
+      <div>
+        <p class="eyebrow">Between Tests</p>
+        <strong>Ready for the next match?</strong>
+      </div>
+      <div class="bottom-break-buttons">
+        <button class="secondary-btn" type="button" data-action="jump-to-respins" ${state.breakChangesRemaining > 0 ? "" : "disabled"}>Use Respins - ${respinLabel}</button>
+        <button class="play-btn" type="button" data-action="continue-series" ${validation.ok ? "" : "disabled"}>Play Next Test</button>
       </div>
     </div>
   `;

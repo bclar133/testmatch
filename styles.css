@@ -1026,6 +1026,29 @@ th {
   margin-bottom: 0;
 }
 
+.bottom-break-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid rgba(246, 207, 98, 0.36);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: rgba(246, 207, 98, 0.09);
+  box-shadow: var(--shadow);
+}
+
+.bottom-break-actions p {
+  margin-bottom: 2px;
+}
+
+.bottom-break-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .match-tabs {
   display: flex;
   flex-wrap: wrap;
@@ -1668,6 +1691,16 @@ th {
   .share-actions {
     justify-items: start;
     justify-content: flex-start;
+  }
+
+  .bottom-break-actions,
+  .bottom-break-buttons {
+    display: grid;
+    justify-content: stretch;
+  }
+
+  .bottom-break-buttons button {
+    width: 100%;
   }
 
   .scenario-grid,
