@@ -182,10 +182,12 @@ function jumpToWicketReplay() {
 
 function jumpToPlayerOffers() {
   if (window.innerWidth > 680) return;
-  const target = document.querySelector(".offer-list .offer-player");
-  if (target && typeof target.scrollIntoView === "function") {
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  setTimeout(() => {
+    const target = document.querySelector(".offer-list .offer-player");
+    if (target && typeof target.scrollIntoView === "function") {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, 0);
 }
 
 function scrollWicketReplayToLatest() {
