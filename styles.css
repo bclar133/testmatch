@@ -972,6 +972,28 @@ th {
   margin-bottom: 0;
 }
 
+.results-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.new-game-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: rgba(7, 27, 33, 0.92);
+}
+
+.new-game-footer .eyebrow {
+  margin-bottom: 3px;
+}
+
 .share-message {
   margin-bottom: 0;
   border: 1px solid rgba(183, 244, 93, 0.28);
@@ -1694,12 +1716,16 @@ th {
   }
 
   .bottom-break-actions,
-  .bottom-break-buttons {
+  .bottom-break-buttons,
+  .new-game-footer,
+  .results-actions {
     display: grid;
     justify-content: stretch;
   }
 
-  .bottom-break-buttons button {
+  .bottom-break-buttons button,
+  .new-game-footer button,
+  .results-actions button {
     width: 100%;
   }
 

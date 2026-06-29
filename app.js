@@ -76,6 +76,11 @@ app.addEventListener("click", async (event) => {
     resetSeriesState();
     render();
   }
+  if (action === "new-game") {
+    startNewGame();
+    render();
+    jumpToGameStart();
+  }
   if (action === "play-series") {
     playSeries();
     render();
@@ -144,6 +149,17 @@ function resetSeriesState() {
   };
 }
 
+function startNewGame() {
+  state.formationId = "classic";
+  state.seriesLength = 3;
+  state.scenario = createScenario();
+  state.selections = {};
+  state.selectionMeta = {};
+  state.currentSlotId = null;
+  state.offerSort = "bat";
+  resetSeriesState();
+}
+
 function clearPlaybackTimer() {
   if (state.playback.timer) {
     clearInterval(state.playback.timer);
@@ -198,6 +214,14 @@ function jumpToBreakRespins() {
   if (target && typeof target.scrollIntoView === "function") {
     target.scrollIntoView({ behavior: "smooth", block: "start" });
   }
+}
+
+function jumpToGameStart() {
+  setTimeout(() => {
+    if (typeof window.scrollTo === "function") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, 0);
 }
 
 function scrollWicketReplayToLatest() {
@@ -564,7 +588,8 @@ function renderResults() {
   const completedResults = latestLive ? state.results.slice(0, -1) : state.results;
   const completedOutrights = completedResults.filter((result) => result.outright).length;
   const resultSummary = completedResults.length ? getSeriesChallengeSummary(completedResults) : null;
-  const seriesSummary = state.seriesStatus === "complete" && !latestLive ? getSeriesSummary(state.results) : null;
+  const seriesComplete = state.seriesStatus === "complete" && !latestLive;
+  const seriesSummary = seriesComplete ? getSeriesSummary(state.results) : null;
 
   return `
     <section id="results" class="results-shell">
@@ -574,15 +599,30 @@ function renderResults() {
           <h2>${latestLive ? `Test ${latestMatch.index} in progress` : state.seriesStatus === "complete" ? resultSummary.title : `Test ${state.results.length} complete`}</h2>
           <p>${latestLive ? "Watch the wicket replay to reveal the match. The result is hidden until the final wicket is shown." : state.seriesStatus === "complete" ? resultSummary.context : `${completedOutrights}/${completedResults.length} innings wins after ${completedResults.length} of ${state.seriesLength} ${state.seriesLength === 1 ? "Test" : "Tests"}. You need an innings win in every match.`}</p>
         </div>
-        <button class="secondary-btn" type="button" data-action="play-series">${state.seriesStatus === "complete" ? "Replay Same XI" : "Restart Series"}</button>
+        <div class="results-actions">
+          <button class="secondary-btn" type="button" data-action="play-series">${seriesComplete ? "Replay Same XI" : "Restart Series"}</button>
+          ${seriesComplete ? `<button class="play-btn" type="button" data-action="new-game">New Game</button>` : ""}
+        </div>
       </div>
       ${state.shareMessage ? `<p class="share-message">${state.shareMessage}</p>` : ""}
       ${inBreak && isLatestPlaybackComplete() ? renderMatchBreak(validation) : ""}
       ${renderMatchTabs(activeMatch.index)}
       ${renderMatchResult(activeMatch)}
       ${inBreak && isLatestPlaybackComplete() && activeMatch.index === latestMatch.index ? renderBottomBreakActions(validation) : ""}
-      ${seriesSummary ? renderSeriesSummary(seriesSummary) : ""}
+      ${seriesSummary ? `${renderSeriesSummary(seriesSummary)}${renderNewGameFooter()}` : ""}
     </section>
+  `;
+}
+
+function renderNewGameFooter() {
+  return `
+    <div class="new-game-footer">
+      <div>
+        <p class="eyebrow">Series complete</p>
+        <strong>Ready for a fresh challenge?</strong>
+      </div>
+      <button class="play-btn" type="button" data-action="new-game">Start New Game</button>
+    </div>
   `;
 }
 
