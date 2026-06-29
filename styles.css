@@ -1317,6 +1317,26 @@ th {
   text-transform: uppercase;
 }
 
+.match-player-strip {
+  border-top: 1px solid rgba(246, 207, 98, 0.26);
+  padding: 10px 14px;
+  background: rgba(246, 207, 98, 0.08);
+}
+
+.match-player-strip strong {
+  display: inline-block;
+  margin-right: 8px;
+  color: #fff8d9;
+  font-size: 18px;
+}
+
+.match-player-strip p {
+  display: inline;
+  margin-bottom: 0;
+  color: #e8f8eb;
+  font-size: 13px;
+}
+
 .weather-strip {
   margin: 14px 0;
 }
@@ -1542,6 +1562,21 @@ th {
   color: #f3fff5;
   font-size: 13px;
   line-height: 1.25;
+}
+
+.series-match-player {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  border-top: 1px solid rgba(246, 207, 98, 0.18);
+  padding: 7px 10px;
+  color: #fff8d9;
+  font-size: 11px;
+}
+
+.series-match-player strong {
+  text-align: right;
 }
 
 .series-innings-lines,

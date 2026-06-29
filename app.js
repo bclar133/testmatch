@@ -895,6 +895,11 @@ function renderMatchScoreboard(summary) {
       <div class="scoreboard-innings-list">
         ${summary.innings.map(renderScoreboardInnings).join("")}
       </div>
+      <div class="match-player-strip">
+        <span class="mini-label">Player of the match</span>
+        <strong>${summary.player.name}</strong>
+        <p>${summary.player.why}</p>
+      </div>
       <div class="scoreboard-result">${summary.resultText}</div>
     </div>
   `;
@@ -950,6 +955,7 @@ function renderSeriesSummary(summary) {
 function getMatchSummary(match) {
   const batting = collectBattingEfforts([match]).sort((a, b) => b.runs - a.runs);
   const bowling = collectBowlingEfforts([match]).sort((a, b) => b.wickets - a.wickets || a.runs - b.runs);
+  const player = pickPlayerOfMatch(match, batting, bowling);
   const teamInnings = {};
   const innings = match.innings.map((entry) => {
     teamInnings[entry.teamId] = (teamInnings[entry.teamId] || 0) + 1;
@@ -975,6 +981,7 @@ function getMatchSummary(match) {
     inningsLine,
     topScore: batting[0] || null,
     topBowling: bowling[0] || null,
+    player,
     innings,
     resultText: match.resultText,
     matchIndex: match.index
@@ -997,6 +1004,7 @@ function renderSeriesMatchSummary(summary) {
         <p class="${summary.topScore?.runs >= 100 ? "summary-milestone" : ""}">${summary.topScore ? `Bat: ${summary.topScore.name} ${summary.topScore.runs}` : "Bat: -"}</p>
         <p class="${summary.topBowling?.wickets >= 5 ? "summary-milestone" : ""}">${summary.topBowling ? `Bowl: ${summary.topBowling.name} ${summary.topBowling.wickets}-${summary.topBowling.runs}` : "Bowl: -"}</p>
       </div>
+      <p class="series-match-player"><span>Player of the match</span><strong>${summary.player.name}</strong></p>
     </section>
   `;
 }
@@ -1055,7 +1063,7 @@ function getSeriesSummary(matches) {
   const challengeSummary = getSeriesChallengeSummary(matches);
   const batting = collectBattingEfforts(matches);
   const bowling = collectBowlingEfforts(matches);
-  const player = pickPlayerOfSeries(batting, bowling);
+  const player = pickPlayerOfSeries(matches, batting, bowling);
   const majorScores = batting
     .filter((effort) => effort.runs >= 100)
     .sort((a, b) => b.runs - a.runs)
@@ -1095,6 +1103,7 @@ function collectBowlingEfforts(matches) {
     .map((row) => ({
       name: row.name,
       teamName: innings.teamId === "user" ? state.scenario.opponent.name : "Invincible XI",
+      teamId: innings.teamId === "user" ? "opponent" : "user",
       bowlingTo: innings.teamName,
       matchIndex: match.index,
       wickets: row.wickets,
@@ -1103,36 +1112,87 @@ function collectBowlingEfforts(matches) {
     }))));
 }
 
-function pickPlayerOfSeries(batting, bowling) {
+function pickPlayerOfMatch(match, batting, bowling) {
+  const winningTeamId = match.winner === "user" || match.winner === "opponent" ? match.winner : null;
+  return pickPlayerAward(batting, bowling, winningTeamId, 20, "match");
+}
+
+function pickPlayerOfSeries(matches, batting, bowling) {
+  const winningTeamId = getSeriesWinningTeamId(matches);
+  return pickPlayerAward(batting, bowling, winningTeamId, matches.length * 20, "series");
+}
+
+function getSeriesWinningTeamId(matches) {
+  const userWins = matches.filter((match) => match.winner === "user").length;
+  const opponentWins = matches.filter((match) => match.winner === "opponent").length;
+  if (userWins === opponentWins) return null;
+  return userWins > opponentWins ? "user" : "opponent";
+}
+
+function pickPlayerAward(batting, bowling, winningTeamId, winnerBonus, scope) {
   const players = new Map();
   for (const effort of batting) {
-    const item = players.get(effort.name) || { name: effort.name, runs: 0, wickets: 0, centuries: 0, fiveFors: 0, highest: 0, bestWickets: 0, bestRuns: 999 };
+    const key = `${effort.teamId}|${effort.name}`;
+    const item = players.get(key) || createAwardCandidate(effort);
     item.runs += effort.runs;
     item.centuries += effort.runs >= 100 ? 1 : 0;
     item.highest = Math.max(item.highest, effort.runs);
-    players.set(effort.name, item);
+    players.set(key, item);
   }
   for (const effort of bowling) {
-    const item = players.get(effort.name) || { name: effort.name, runs: 0, wickets: 0, centuries: 0, fiveFors: 0, highest: 0, bestWickets: 0, bestRuns: 999 };
+    const key = `${effort.teamId}|${effort.name}`;
+    const item = players.get(key) || createAwardCandidate(effort);
     item.wickets += effort.wickets;
     item.fiveFors += effort.wickets >= 5 ? 1 : 0;
     if (effort.wickets > item.bestWickets || effort.wickets === item.bestWickets && effort.runs < item.bestRuns) {
       item.bestWickets = effort.wickets;
       item.bestRuns = effort.runs;
     }
-    players.set(effort.name, item);
+    players.set(key, item);
   }
   const ranked = [...players.values()].map((player) => ({
     ...player,
-    points: player.runs / 7 + player.wickets * 24 + player.centuries * 24 + player.fiveFors * 34
-  })).sort((a, b) => b.points - a.points);
-  const winner = ranked[0] || { name: "No standout", runs: 0, wickets: 0, centuries: 0, fiveFors: 0, highest: 0, bestWickets: 0, bestRuns: 0 };
-  const why = winner.runs >= 180 && winner.wickets >= 8
-    ? `${winner.runs} runs and ${winner.wickets} wickets across the series.`
-    : winner.wickets > winner.runs / 18
-      ? `${winner.wickets} wickets${winner.fiveFors ? ` with ${winner.fiveFors} five-wicket haul${winner.fiveFors === 1 ? "" : "s"}` : ""}.`
-      : `${winner.runs} runs${winner.centuries ? ` with ${winner.centuries} hundred${winner.centuries === 1 ? "" : "s"}` : ""}.`;
-  return { ...winner, why };
+    performancePoints: player.runs + player.wickets * 20,
+    isWinner: Boolean(winningTeamId && player.teamId === winningTeamId)
+  })).map((player) => ({
+    ...player,
+    points: player.performancePoints + (player.isWinner ? winnerBonus + player.performancePoints * 0.10 : 0)
+  })).sort((a, b) => b.points - a.points || Number(b.isWinner) - Number(a.isWinner) || b.performancePoints - a.performancePoints);
+  const winner = ranked[0] || createAwardCandidate({ name: "No standout", teamName: "", teamId: "" });
+  return { ...winner, why: formatAwardReason(winner, winningTeamId, scope) };
+}
+
+function createAwardCandidate(effort) {
+  return {
+    name: effort.name,
+    teamName: effort.teamName,
+    teamId: effort.teamId,
+    runs: 0,
+    wickets: 0,
+    centuries: 0,
+    fiveFors: 0,
+    highest: 0,
+    bestWickets: 0,
+    bestRuns: 999
+  };
+}
+
+function formatAwardReason(player, winningTeamId, scope) {
+  let performance = "No standout performance";
+  if (player.runs > 0 && player.wickets > 0) {
+    performance = `${player.runs} runs and ${player.wickets} wickets`;
+  } else if (player.wickets > 0) {
+    performance = `${player.wickets} wickets${player.fiveFors ? ` with ${player.fiveFors} five-wicket haul${player.fiveFors === 1 ? "" : "s"}` : ""}`;
+  } else if (player.runs > 0) {
+    performance = `${player.runs} runs${player.centuries ? ` with ${player.centuries} hundred${player.centuries === 1 ? "" : "s"}` : ""}`;
+  }
+
+  if (!player.teamName) return `${performance}.`;
+  if (winningTeamId && player.teamId === winningTeamId) {
+    return `${performance} for ${player.teamName}${scope === "series" ? " in the series win" : " in the win"}.`;
+  }
+  if (winningTeamId) return `${performance} for ${player.teamName} despite the defeat.`;
+  return `${performance} for ${player.teamName}.`;
 }
 
 function formatBattingEffort(effort) {
@@ -1176,6 +1236,7 @@ function createMatchShareCanvas(match) {
     match.resultText,
     `${match.venue.ground.name}, ${match.venue.ground.city}`,
     summary.inningsLine,
+    `Player of the match: ${summary.player.name} - ${summary.player.why}`,
     summary.topScore ? `Top score: ${formatBattingEffort(summary.topScore)}` : "",
     summary.topBowling ? `Best bowling: ${formatBowlingEffort(summary.topBowling)}` : ""
   ].filter(Boolean);
@@ -1232,7 +1293,7 @@ function createResultImageCanvas({ eyebrow, title, lines }) {
   context.font = "700 30px Arial, sans-serif";
   let y = 300;
   for (const line of lines) {
-    context.fillStyle = line.includes("Player of the series") || line.includes("Top score") || line.includes("Best bowling") ? "#f6cf62" : "#e6f7e7";
+    context.fillStyle = line.includes("Player of the series") || line.includes("Player of the match") || line.includes("Top score") || line.includes("Best bowling") ? "#f6cf62" : "#e6f7e7";
     y = drawWrappedCanvasText(context, line, 70, y, width - 140, 40, 2) + 22;
     if (y > height - 82) break;
   }
