@@ -2126,7 +2126,8 @@ function distributeRuns(batters, totalRuns) {
 }
 
 function shapeBattingScores(batters, scores, totalRuns) {
-  if (totalRuns < 145 || scores.length < 2) return scores;
+  if (scores.length < 2) return scores;
+  if (totalRuns < 145) return ensureCenturySupportScores(batters, scores, totalRuns);
   scores = maybePromoteBradmanCentury(batters, scores, totalRuns);
   const bestBatter = batters.reduce((best, batter, index) => {
     if (!best || (batter.bat || 0) > (best.batter.bat || 0)) return { batter, index };
@@ -2148,7 +2149,56 @@ function shapeBattingScores(batters, scores, totalRuns) {
     const target = clamp(Math.round(100 + randomBetween(0, Math.max(18, (batters[candidate.index].bat || 50) - 48)) + gaussian(0, 16)), 100, Math.min(totalRuns, 220));
     scores = promoteScoreToTarget(scores, candidate.index, target);
   }
-  return promotePartnershipScores(batters, scores, totalRuns);
+  scores = promotePartnershipScores(batters, scores, totalRuns);
+  return ensureCenturySupportScores(batters, scores, totalRuns);
+}
+
+function ensureCenturySupportScores(batters, scores, totalRuns) {
+  const centuryIndices = scores
+    .map((runs, index) => ({ runs, index }))
+    .filter((entry) => entry.runs >= 100)
+    .sort((a, b) => b.runs - a.runs);
+  if (!centuryIndices.length || centuryIndices.length > 1) return scores;
+
+  const centuryIndex = centuryIndices[0].index;
+  const supportCandidates = scores
+    .map((runs, index) => ({
+      index,
+      runs,
+      value: runs * 3 + (batters[index]?.bat || 35) * 0.25 - Math.abs(index - centuryIndex) * 2
+    }))
+    .filter((entry) => entry.index !== centuryIndex)
+    .sort((a, b) => b.value - a.value);
+  const support = supportCandidates[0];
+  if (!support) return scores;
+
+  if (totalRuns < 130) {
+    const excess = scores[centuryIndex] - 99;
+    scores[centuryIndex] = 99;
+    scores[support.index] += excess;
+    return scores;
+  }
+
+  const supportTarget = Math.min(totalRuns - 100, clamp(Math.round(totalRuns * 0.15), 25, 60));
+  let needed = supportTarget - scores[support.index];
+  if (needed <= 0) return scores;
+
+  const donors = scores
+    .map((runs, index) => ({
+      index,
+      spare: index === centuryIndex ? Math.max(0, runs - 100) : runs
+    }))
+    .filter((entry) => entry.index !== support.index && entry.spare > 0)
+    .sort((a, b) => b.spare - a.spare);
+
+  for (const donor of donors) {
+    if (needed <= 0) break;
+    const transfer = Math.min(donor.spare, needed);
+    scores[donor.index] -= transfer;
+    scores[support.index] += transfer;
+    needed -= transfer;
+  }
+  return scores;
 }
 
 function promotePartnershipScores(batters, scores, totalRuns) {
