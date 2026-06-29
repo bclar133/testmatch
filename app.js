@@ -2048,7 +2048,7 @@ function createInnings(battingTeam, bowlingTeam, score, wickets, status, conditi
 
   const scores = distributeRuns(batters.slice(0, battedCount), batRuns);
   const dismissedIndices = chooseDismissedIndices(battedCount, wickets);
-  const fowScores = buildFowScores(score, wickets, allOut);
+  const fowProgress = buildFowProgress(score, wickets, allOut, overs);
   const wicketBowlers = [];
   const battingRows = batters.map((batter, index) => {
     if (index >= battedCount) {
@@ -2066,9 +2066,9 @@ function createInnings(battingTeam, bowlingTeam, score, wickets, status, conditi
 
   const fow = dismissedIndices.map((batterIndex, index) => ({
     wicket: index + 1,
-    score: fowScores[index],
+    score: fowProgress[index].score,
     batter: batters[batterIndex].name,
-    over: fowScores[index] / Math.max(score, 1) * overs
+    over: fowProgress[index].over
   }));
   const wicketEvents = fow.map((item) => {
     const row = battingRows.find((batter) => batter.name === item.batter);
@@ -2278,17 +2278,48 @@ function chooseDismissedIndices(battedCount, wickets) {
     .slice(0, wickets);
 }
 
-function buildFowScores(score, wickets, allOut) {
+function buildFowProgress(score, wickets, allOut, overs) {
   if (!wickets) return [];
+  const maxTailRuns = Math.min(50, Math.max(0, Math.round(score * 0.16)), Math.max(0, score - wickets));
+  const finalWicketScore = allOut ? score : score - randomInt(0, maxTailRuns);
+  const runWeights = Array.from({ length: wickets }, () => Math.exp(gaussian(0, 0.72)));
+  const totalRunWeight = runWeights.reduce((sum, weight) => sum + weight, 0);
+  const distributableRuns = Math.max(0, finalWicketScore - wickets);
   const scores = [];
-  let previous = 0;
+  let cumulativeRunWeight = 0;
+
   for (let index = 0; index < wickets; index += 1) {
-    const target = allOut && index === wickets - 1 ? score : Math.round(score * (index + 1) / (wickets + randomBetween(0.8, 1.8)) + gaussian(0, 18));
-    const next = clamp(Math.max(previous + randomInt(1, 35), target), previous + 1, allOut && index === wickets - 1 ? score : score - 1);
+    cumulativeRunWeight += runWeights[index];
+    const wicketsRemaining = wickets - index - 1;
+    const target = index === wickets - 1
+      ? finalWicketScore
+      : index + 1 + Math.round(distributableRuns * cumulativeRunWeight / totalRunWeight);
+    const minimum = (scores[index - 1] || 0) + 1;
+    const maximum = finalWicketScore - wicketsRemaining;
+    const next = clamp(target, minimum, maximum);
     scores.push(next);
-    previous = next;
   }
-  return scores;
+
+  const totalBalls = Math.max(wickets, Math.round(overs * 6));
+  const maxTailBalls = allOut ? 0 : Math.min(30, Math.max(0, totalBalls - wickets));
+  const finalWicketBall = totalBalls - randomInt(0, maxTailBalls);
+  const balls = [];
+
+  for (let index = 0; index < wickets; index += 1) {
+    const wicketsRemaining = wickets - index - 1;
+    const scoreProgress = scores[index] / Math.max(1, finalWicketScore);
+    const target = index === wickets - 1
+      ? finalWicketBall
+      : Math.round(finalWicketBall * scoreProgress + gaussian(0, Math.max(2, finalWicketBall * 0.025)));
+    const minimum = (balls[index - 1] || 0) + 1;
+    const maximum = finalWicketBall - wicketsRemaining;
+    balls.push(clamp(target, minimum, maximum));
+  }
+
+  return scores.map((wicketScore, index) => ({
+    score: wicketScore,
+    over: balls[index] / 6
+  }));
 }
 
 function createBowlingFigures(bowlers, score, wickets, wicketBowlers, overs, condition) {
