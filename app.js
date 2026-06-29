@@ -1795,12 +1795,14 @@ function buildMatchScorecard(config) {
 
     if (margin < targetMargin) {
       const adjustment = targetMargin - margin;
+      const loserSecondFloor = loserSecond < 82 ? 45 : 82;
       winnerScore = clamp(winnerScore + Math.round(adjustment * 0.42), 220, 760);
-      loserSecond = clamp(loserSecond - Math.round(adjustment * 0.26), 65, Math.max(65, winnerScore - loserFirst - 1));
+      loserSecond = clamp(loserSecond - Math.round(adjustment * 0.26), loserSecondFloor, Math.max(loserSecondFloor, winnerScore - loserFirst - 1));
       margin = winnerScore - loserFirst - loserSecond;
     }
     if (margin <= 0) {
-      loserSecond = Math.max(65, winnerScore - loserFirst - randomInt(18, 80));
+      const loserSecondFloor = loserSecond < 82 ? 45 : 82;
+      loserSecond = Math.max(loserSecondFloor, winnerScore - loserFirst - randomInt(18, 80));
       margin = winnerScore - loserFirst - loserSecond;
     }
     if (margin <= 0) {
@@ -1860,7 +1862,9 @@ function buildMatchScorecard(config) {
     resultText = `${second.name} won by ${10 - fourthWickets} wickets`;
   } else {
     const margin = Math.round(randomBetween(28, 175));
-    second2 = Math.max(60, target - margin);
+    const rareFourthInningsCollapse = Math.random() < clamp(0.012 + Math.max(0, firstRatings.attack - secondRatings.batting) * 0.0012, 0.01, 0.05);
+    const fourthInningsFloor = rareFourthInningsCollapse ? randomInt(55, 78) : 82;
+    second2 = Math.max(fourthInningsFloor, target - margin);
     fourthWickets = 10;
     fourthStatus = "all out";
     resultText = `${first.name} won by ${target - second2} runs`;
@@ -1910,14 +1914,16 @@ function applyUserDominanceToFirstInnings(config, first, second, firstRatings, s
   const bowlingSqueeze = adjustment - battingLift;
 
   if (userIsFirst) {
+    const opponentFloor = second1 < 82 ? 45 : 82;
     return {
       first1: clamp(first1 + battingLift, 160, 720),
-      second1: clamp(second1 - bowlingSqueeze, 70, 540)
+      second1: clamp(second1 - bowlingSqueeze, opponentFloor, 540)
     };
   }
 
+  const opponentFloor = first1 < 82 ? 45 : 82;
   return {
-    first1: clamp(first1 - bowlingSqueeze, 70, 540),
+    first1: clamp(first1 - bowlingSqueeze, opponentFloor, 540),
     second1: clamp(second1 + battingLift, 160, 720)
   };
 }
@@ -1935,8 +1941,9 @@ function buildForcedFollowOnScorecard(config, first, second, firstRatings, secon
   const dominance = userDominanceScore(userRatings, opponentRatings);
   const pressure = clamp((lead - 200) * 0.25 + Math.max(0, dominance) * 1.15 + ((userRatings.attack || 0) - (opponentRatings.batting || 0)) * 0.90, 0, 105);
   const collapseChance = clamp(0.09 + Math.max(0, dominance) * 0.008 + (lead - 200) * 0.0007 + Math.max(0, (userRatings.attack || 0) - 90) * 0.005 - (state.seriesLength === 5 ? 0.07 : state.seriesLength === 3 ? 0.03 : 0), 0.07, state.seriesLength === 1 ? 0.44 : 0.34);
-  const collapseBonus = Math.random() < collapseChance ? randomBetween(20, 85) : 0;
-  opponentFollowOn = clamp(Math.round(opponentFollowOn - pressure - collapseBonus + gaussian(0, 22)), 45, 620);
+  const collapseBonus = Math.random() < collapseChance ? randomBetween(15, 55) : 0;
+  const rareFollowOnCollapse = opponentFollowOn < 82 || Math.random() < collapseChance * 0.08;
+  opponentFollowOn = clamp(Math.round(opponentFollowOn - pressure - collapseBonus + gaussian(0, 20)), rareFollowOnCollapse ? 45 : 82, 620);
   const crushChance = clamp(0.03 + Math.max(0, dominance) * 0.004 + Math.max(0, lead - 225) * 0.0005 - (state.seriesLength === 5 ? 0.04 : state.seriesLength === 3 ? 0.02 : 0), 0.015, state.seriesLength === 1 ? 0.20 : 0.14);
   if (opponentFollowOn >= lead && Math.random() < crushChance) {
     opponentFollowOn = randomInt(80, Math.max(85, lead - randomInt(8, 55)));
@@ -2024,14 +2031,31 @@ function buildWicketEvents(innings) {
 function inningsTotal(batting, bowling, condition, mode) {
   const modeShift = {
     normal: 0,
-    press: 42,
-    under: -54,
-    dominate: 108,
-    collapse: -84,
-    followOn: -68
+    press: 36,
+    under: -42,
+    dominate: 100,
+    collapse: -58,
+    followOn: -46
   }[mode] || 0;
-  const mean = 284 + (batting - bowling) * 4.85 + (condition.batting - 1) * 92 + modeShift;
-  return clamp(Math.round(mean + gaussian(0, mode === "dominate" ? 62 : 54)), 55, mode === "dominate" ? 840 : 650);
+  const ratingGap = batting - bowling;
+  const mean = 292 + ratingGap * 3.45 + (condition.batting - 1) * 85 + modeShift;
+  const spread = mode === "dominate" ? 58 : mode === "collapse" || mode === "followOn" ? 46 : 48;
+  const rareCollapseChance = clamp(
+    0.004
+      + Math.max(0, bowling - batting - 5) * 0.0012
+      + (mode === "collapse" ? 0.012 : mode === "followOn" ? 0.008 : mode === "under" ? 0.004 : 0)
+      + Math.max(0, 1 - condition.batting) * 0.02,
+    0.003,
+    0.05
+  );
+
+  if (Math.random() < rareCollapseChance) {
+    const rareMean = clamp(105 + ratingGap * 0.75 + (mode === "collapse" ? -8 : mode === "followOn" ? -4 : 0) + (condition.batting - 1) * 35, 60, 125);
+    return clamp(Math.round(rareMean + gaussian(0, 16)), 45, 150);
+  }
+
+  const ordinaryFloor = mode === "collapse" || mode === "followOn" ? 82 : mode === "under" ? 88 : 95;
+  return clamp(Math.round(mean + gaussian(0, spread)), ordinaryFloor, mode === "dominate" ? 840 : 650);
 }
 
 function createInnings(battingTeam, bowlingTeam, score, wickets, status, condition) {
