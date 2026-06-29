@@ -1896,6 +1896,13 @@ th {
     display: none;
   }
 
+  .wicket-table > tbody > tr:not(.wicket-innings-row):not(.innings-bowling-row) > td:nth-child(7):not(:empty) {
+    grid-column: 2 / -1;
+    grid-row: 4;
+    color: #fff8d9;
+    text-align: left;
+  }
+
   .wicket-innings-row,
   .innings-bowling-row {
     display: block;

@@ -759,7 +759,7 @@ function renderWicketFeed(match, wicketEvents) {
                   <td>${event.how}</td>
                   <td>${event.wicket}-${event.score}</td>
                   <td>${formatOvers(event.over)}</td>
-                  <td>${isFinalVisibleInningsWicket(match, event) ? `${event.inningsTotal}/${event.inningsWickets}${event.inningsWickets === 10 ? " ao" : ""}` : ""}</td>
+                  <td>${isFinalVisibleInningsWicket(match, event) ? formatReplayInningsTotal(match.innings[event.inningsIndex]) : ""}</td>
                 </tr>
                 ${isFinalVisibleInningsWicket(match, event) ? renderReplayInningsClose(match, event, index === wicketEvents.length - 1) : ""}
               `).join("")}
@@ -791,7 +791,7 @@ function renderReplayInningsClose(match, event, isLatest) {
         <td>not out</td>
         <td>-</td>
         <td>-</td>
-        <td>${innings.score}/${innings.wickets}${innings.wickets === 10 ? " ao" : ""}</td>
+        <td>${formatReplayInningsTotal(innings)}</td>
       </tr>
     `).join("");
 
@@ -848,7 +848,7 @@ function renderInnings(innings) {
     <section class="innings-card innings-${innings.teamId}">
       <div class="innings-title">
         <strong>${innings.teamName}</strong>
-        <span>${innings.score}/${innings.wickets}${innings.wickets === 10 ? " all out" : ""} (${formatOvers(innings.overs)} ov)</span>
+        <span>${innings.score}/${innings.wickets} ${getInningsClosureLabel(innings)} (${formatOvers(innings.overs)} ov)</span>
       </div>
       <table>
         <thead>
@@ -1010,7 +1010,21 @@ function renderSeriesMatchSummary(summary) {
 }
 
 function formatInningsTotalShort(innings) {
-  return innings.wickets >= 10 ? `${innings.score}` : `${innings.wickets}-${innings.score}`;
+  if (innings.wickets >= 10) return `${innings.score}`;
+  const suffix = innings.status === "declared" ? "dec" : innings.status === "target reached" ? "target" : "time";
+  return `${innings.wickets}-${innings.score} ${suffix}`;
+}
+
+function formatReplayInningsTotal(innings) {
+  if (!innings) return "";
+  return `${innings.score}/${innings.wickets} ${getInningsClosureLabel(innings)}`;
+}
+
+function getInningsClosureLabel(innings) {
+  if (innings.wickets >= 10) return "all out";
+  if (innings.status === "target reached") return "target reached";
+  if (innings.status === "time expired") return "time expired";
+  return "declared";
 }
 
 function getSeriesChallengeSummary(matches) {
@@ -1971,10 +1985,12 @@ function buildMatchScorecard(config) {
     resultText = `${first.name} won by ${target - second2} runs`;
   }
 
+  const thirdInningsDeclared = Math.random() < 0.18;
+  const thirdInningsWickets = thirdInningsDeclared ? randomInt(6, 9) : 10;
   const innings = [
     createInnings(first, second, first1, 10, "all out", config.condition),
     createInnings(second, first, second1, 10, "all out", config.condition),
-    createInnings(first, second, first2, Math.random() < 0.18 ? randomInt(6, 9) : 10, Math.random() < 0.18 ? "declared" : "all out", config.condition),
+    createInnings(first, second, first2, thirdInningsWickets, thirdInningsDeclared ? "declared" : "all out", config.condition),
     createInnings(second, first, second2, fourthWickets, fourthStatus, config.condition)
   ];
   const wicketEvents = buildWicketEvents(innings);
@@ -2162,6 +2178,7 @@ function inningsTotal(batting, bowling, condition, mode) {
 function createInnings(battingTeam, bowlingTeam, score, wickets, status, condition) {
   wickets = clamp(Math.round(wickets), 0, 10);
   const allOut = wickets === 10;
+  status = normalizeInningsStatus(status, allOut);
   const battedCount = allOut ? 11 : clamp(wickets + 2, 2, 11);
   const overs = estimatedOvers(score, status);
   const extras = clamp(Math.round(score * randomBetween(0.025, 0.07)), 3, Math.max(3, Math.round(score * 0.14)));
@@ -2222,6 +2239,11 @@ function createInnings(battingTeam, bowlingTeam, score, wickets, status, conditi
     wicketEvents,
     bowling
   };
+}
+
+function normalizeInningsStatus(status, allOut) {
+  if (allOut) return status === "follow-on all out" ? status : "all out";
+  return ["declared", "time expired", "target reached"].includes(status) ? status : "declared";
 }
 
 function distributeRuns(batters, totalRuns) {
